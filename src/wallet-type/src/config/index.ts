@@ -1,0 +1,1 @@
+export type BaseConfigurations = Record<string, any>

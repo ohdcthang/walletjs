@@ -1,5 +1,1 @@
-export class WalletCore {
-  constructor() {
-    console.log('WalletCore constructor');
-  }
-}
+export * from './abstract';
