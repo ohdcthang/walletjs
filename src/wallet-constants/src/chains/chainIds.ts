@@ -1,3 +1,1 @@
-export const CHAIN_IDs = {
-    etereum: 'ethereum',
-}
+export const CHAIN = []

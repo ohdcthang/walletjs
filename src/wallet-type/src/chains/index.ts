@@ -1,3 +1,2 @@
-import { CHAIN_IDs } from 'wallet-constants'
-
-export type chainType =  keyof typeof CHAIN_IDs
+export * from './chains'
+export * from './networks'

@@ -1,1 +1,5 @@
-export type BaseConfigurations = Record<string, any>
+import { NetworkConfig } from "../chains"
+
+export type BaseConfigurations = {
+    networks: NetworkConfig[]
+}

@@ -11,7 +11,7 @@
     "node": ">=10"
   },
   "scripts": {
-    "start": "tsdx watch",
+    "dev": "tsdx watch",
     "build": "tsdx build",
     "test": "tsdx test",
     "lint": "tsdx lint",
@@ -19,7 +19,6 @@
     "size": "size-limit",
     "analyze": "size-limit --why"
   },
-  "peerDependencies": {},
   "husky": {
     "hooks": {
       "pre-commit": "tsdx lint"
@@ -46,6 +45,7 @@
   ],
   "devDependencies": {
     "@size-limit/preset-small-lib": "^11.1.6",
+    "@types/lodash-es": "^4.17.12",
     "husky": "^9.1.7",
     "size-limit": "^11.1.6",
     "tsdx": "^0.14.1",
@@ -53,5 +53,13 @@
     "typescript": "^5.7.3",
     "wallet-core": "workspace:*",
     "wallet-type": "workspace:*"
+  },
+  "dependencies": {
+    "@ethereumjs/wallet": "^2.0.4",
+    "axios": "^1.8.3",
+    "bip39": "^3.1.0",
+    "ethereumjs-wallet": "^1.0.2",
+    "lodash-es": "^4.17.21",
+    "web3": "1.10.0"
   }
 }

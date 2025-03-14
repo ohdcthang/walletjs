@@ -11,6 +11,8 @@
     "node": ">=10"
   },
   "scripts": {
+    "dev": "pnpm run --recursive dev",
+    "build": "pnpm run --recursive build"
   },
   "peerDependencies": {},
   "husky": {

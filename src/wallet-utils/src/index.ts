@@ -1,6 +1,5 @@
-export const sum1 = (a: number, b: number) => {
-  if ('development' === process.env.NODE_ENV) {
-    console.log('boop');
+export class WalletUtils {
+  constructor() {
+    // Implementation for wallet utils
   }
-  return a + b;
-};
+} 
