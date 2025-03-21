@@ -31,39 +31,33 @@ const balance = await wallet.getBalance({ chain: 'pol' });
 //Gas
 const gasPriceStep = wallet.estimateGas({ chain: 'pol' });
 
-//Transfer ERC-20
-const trasnferNative = await wallet.transfer({
-  chain: 'pol',
+
+//Transfer
+const nativeTransfer: TransferParams = {
   type: 'native',
-  transaction: {
-    to: '0x8C835175FECa5491079d26F50E190aA0b3E1415B',
-    amount: '0.001',
-    gasPrice: Number(gas.standard),
-  }
-}),
-
-//Transfer ERC-20
-const trasnferERC20 = await wallet.transfer({
+  to: '0xRecipientAddress',
+  amount: '0.001',
+  gasPrice: gas.standard,
   chain: 'pol',
+};
+
+const erc20Transfer: TransferParams = {
   type: 'erc20',
-  transaction: {
-    to: '0x8C835175FECa5491079d26F50E190aA0b3E1415B',
-    tokenAddress: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359"
-    amount: '0.001',
-    gasPrice: Number(gas.standard),
-  },
-});
-
-//Transfer nft
-const trasnferERC20 = await wallet.transfer({
+  to: '0xRecipientAddress',
+  tokenAddress: '0xTokenAddress',
+  amount: '0.001',
+  gasPrice: gas.standard,
   chain: 'pol',
+};
+
+const nftTransfer: TransferParams = {
   type: 'nft',
-  transaction: {
-    to: '0x8C835175FECa5491079d26F50E190aA0b3E1415B',
-    tokenAddress: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359"
-    tokenId: ".....",
-    amount: '0.001',
-    gasPrice: Number(gas.standard),
-  },
-});
+  to: '0xRecipientAddress',
+  tokenAddress: '0xNftContractAddress',
+  tokenId: '1234',
+  gasPrice: gas.standard,
+  chain: 'pol',
+};
+
+const tx = await wallet.transfer(nativeTransfer || erc20Transfer || nftTransfer);
 ```

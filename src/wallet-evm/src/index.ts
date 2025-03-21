@@ -1,5 +1,5 @@
 import { WalletCore } from 'wallet-core'
-import type { Wallet, NetworkConfig, chainType, GetBalanceParams, GetTokensParams, TokenInfo, TokenListResponse, EstimateGasParams, EstimateGasResponse, TransferParams, NftListResponse, GetNftsParams } from 'wallet-type'
+import type { Wallet, NetworkConfig, chainType, GetBalanceParams, GetTokensParams, TokenInfo, TokenListResponse, EstimateGasParams, EstimateGasResponse, TransferParams, NftListResponse, GetNftsParams, NativeTransaction, Erc20Transaction, NftTransaction } from 'wallet-type'
 import { fetchNetworks, fetchNftsList, fetchTokenList } from './api'
 import Web3 from 'web3'
 import { mnemonicToSeedSync, validateMnemonic } from 'bip39'
@@ -17,7 +17,12 @@ export class EvmWallet extends WalletCore<any>{
     super(wallet)
 
     if (EvmWallet.instance) return EvmWallet.instance
+    
     EvmWallet.instance = this
+
+    this.init().catch((error) => {
+      console.error('Error during initialization:', error);
+    });
   }
 
   static fromMnemonic(mnemonic: string, path = '60') {
@@ -145,7 +150,6 @@ export class EvmWallet extends WalletCore<any>{
 
     const address = this.getAddress()
     try {
-      await this.init()
       const networkData = this.getNetworkSync(chain)
 
       const nfts = await fetchNftsList(networkData?.chain as string, address)
@@ -168,7 +172,6 @@ export class EvmWallet extends WalletCore<any>{
     const { chain } = params
 
     try {
-      await this.init()
       const provider = await this.getProvider(chain)
       const gasPriceWei = await provider.eth.getGasPrice(); // Giá gas mặc định từ mạng (Wei)
 
@@ -191,61 +194,77 @@ export class EvmWallet extends WalletCore<any>{
     }
   }
 
+
   async transfer<T extends TransferParams>(params: T): Promise<string> {
-    const { chain, type, transaction } = params
-    const {to, gasPrice, amount} = transaction
-
+    const { chain, type, ...transaction } = params;
+  
     try {
-      await this.init()
-      const provider = await this.getProvider(chain)
-
-      let tx: any;
-      let data: string | undefined;
-
+      const provider = await this.getProvider(chain);
       const from = this.getAddress();
-
-      if(type === 'native') {
-        tx = {
-          from,
-          to,
-          value: Web3.utils.toWei(amount, 'ether'),
-        };
+  
+      let tx: any = { from };
+      let data: string | undefined;
+  
+        // Use a type guard to narrow the type of `transaction`
+      if (type === 'native') {
+        const nativeTransaction = transaction as unknown as NativeTransaction;
+        tx = this.buildNativeTx(from, nativeTransaction.to, nativeTransaction.amount);
+      } else if (type === 'erc20') {
+        const erc20Transaction = transaction as unknown as Erc20Transaction;
+        data = await this.buildErc20Tx(provider, erc20Transaction);
+      } else if (type === 'nft') {
+        const nftTransaction = transaction as unknown as NftTransaction;
+        data = await this.buildNftTx(provider, from, nftTransaction.to, nftTransaction);
+      } else {
+        throw new Error('Unsupported transaction type');
       }
-
-      if(type === 'erc20') {
-        const contract = new provider.eth.Contract(ERC20_ABI as any, params.transaction.tokenAddress);
-        const decimals = await contract.methods.decimals().call();
-        const amountInWei = (Number(amount) * Number(10 ** decimals)).toString();
-        data = contract.methods.transfer(to, amountInWei).encodeABI();
-      }
-
-      if(type === 'nft') {
-        const contract = new provider.eth.Contract(ERC721_ABI as any, params.transaction.tokenAddress);
-        data = contract.methods.safeTransferFrom(from, to, params.transaction.tokenId).encodeABI();
-      }
-
       if (data) {
         tx = {
-          from,
-          to: params.transaction.tokenAddress,
-          data
+          ...tx,
+          //@ts-expect-error
+          to: 'tokenAddress' in transaction ? transaction.tokenAddress : tx.to,
+          data,
         };
       }
-
+  
       tx.gas = await provider.eth.estimateGas(tx);
-      tx.gasPrice = Web3.utils.toWei(gasPrice.toString(), 'gwei');
-
-      const privateKey = this.getPrivateKey();
-
-      const signedTx = await provider.eth.accounts.signTransaction(tx, privateKey);
-      const { transactionHash } = await provider.eth.sendSignedTransaction(signedTx.rawTransaction as string);
-
-      return transactionHash
-
+  
+      // Add gas price if provided
+      if (transaction.gasPrice) {
+        tx.gasPrice = Web3.utils.toWei(transaction.gasPrice.toString(), 'gwei');
+      }
+  
+      const signedTx = await provider.eth.accounts.signTransaction(tx, this.getPrivateKey());
+      const receipt = await provider.eth.sendSignedTransaction(signedTx.rawTransaction!);
+  
+      return receipt.transactionHash;
     } catch (error) {
-        throw new Error('Transaction failed');
+      throw new Error('Transfer failed');
     }
   }
+  
+  private buildNativeTx(from: string, to: string, amount: string) {
+    return {
+      from,
+      to,
+      value: Web3.utils.toWei(amount, 'ether'),
+    };
+  }
+  
+  private async buildErc20Tx(provider: Web3, transaction: Erc20Transaction): Promise<string> {
+    const { to, amount, tokenAddress } = transaction;
+    const contract = new provider.eth.Contract(ERC20_ABI as any, tokenAddress);
+    const decimals = await contract.methods.decimals().call();
+    const amountInWei = (Number(amount) * Number(10 ** decimals)).toString();
+    return contract.methods.transfer(to, amountInWei).encodeABI();
+  }
+  
+  private async buildNftTx(provider: Web3, from: string, to: string, transaction: NftTransaction): Promise<string> {
+    const { tokenAddress, tokenId } = transaction;
+    const contract = new provider.eth.Contract(ERC721_ABI as any, tokenAddress);
+    return contract.methods.safeTransferFrom(from, to, tokenId).encodeABI();
+  }
+  
 
   async getProvider(network: chainType): Promise<Web3> {
     if (this.providerCached.has(network)) return this.providerCached.get(network) as Web3
@@ -261,7 +280,7 @@ export class EvmWallet extends WalletCore<any>{
   private getNetworkSync(network: chainType): NetworkConfig | undefined {
     return this.config?.networks.find((net: NetworkConfig) => net.shortName === network)
   }
-  
+
   async create() {
     await this.init();
   }
