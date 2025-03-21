@@ -6,6 +6,7 @@ import { mnemonicToSeedSync, validateMnemonic } from 'bip39'
 import { hdkey, Wallet as hdWallet } from '@ethereumjs/wallet';
 import { ERC20_ABI, ERC721_ABI } from './constants'
 import { get } from 'lodash-es'
+import { InvalidMnemonicError, TransferFailedError, UnsupportedTransactionTypeError } from 'wallet-validator'
 // import { ERC20_ABI } from './constants'
 
 export class EvmWallet extends WalletCore<any>{
@@ -26,7 +27,7 @@ export class EvmWallet extends WalletCore<any>{
   }
 
   static fromMnemonic(mnemonic: string, path = '60') {
-    if (!validateMnemonic(mnemonic)) throw new Error('Invalid mnemonic')
+    if (!validateMnemonic(mnemonic)) throw new InvalidMnemonicError('Invalid mnemonic')
 
     const seed = mnemonicToSeedSync(mnemonic)
     const hdWallet = hdkey.EthereumHDKey.fromMasterSeed(seed)
@@ -234,7 +235,7 @@ export class EvmWallet extends WalletCore<any>{
         const nftTransaction = transaction as unknown as NftTransaction;
         data = await this.buildNftTx(provider, from, nftTransaction.to, nftTransaction);
       } else {
-        throw new Error('Unsupported transaction type');
+        throw new UnsupportedTransactionTypeError({ type });
       }
       if (data) {
         tx = {
@@ -261,7 +262,7 @@ export class EvmWallet extends WalletCore<any>{
   
       return receipt.transactionHash;
     } catch (error) {
-      throw new Error('Transfer failed');
+      throw new TransferFailedError({ params, error });
     }
   }
   

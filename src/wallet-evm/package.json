@@ -50,9 +50,7 @@
     "size-limit": "^11.1.6",
     "tsdx": "^0.14.1",
     "tslib": "^2.8.1",
-    "typescript": "^5.7.3",
-    "wallet-core": "workspace:*",
-    "wallet-type": "workspace:*"
+    "typescript": "^5.7.3"
   },
   "dependencies": {
     "@ethereumjs/wallet": "^2.0.4",
@@ -60,6 +58,9 @@
     "bip39": "^3.1.0",
     "ethereumjs-wallet": "^1.0.2",
     "lodash-es": "^4.17.21",
-    "web3": "1.10.0"
+    "web3": "1.10.0",
+    "wallet-core": "workspace:*",
+    "wallet-type": "workspace:*",
+    "wallet-validator": "workspace:*"
   }
 }
