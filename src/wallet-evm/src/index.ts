@@ -168,29 +168,47 @@ export class EvmWallet extends WalletCore<any>{
     }
   }
 
-  async estimateGas<T extends EstimateGasParams>(params: T): Promise<EstimateGasResponse> {
+  async estimateGas(params: EstimateGasParams): Promise<EstimateGasResponse> {
     const { chain } = params
-
     try {
-      const provider = await this.getProvider(chain)
-      const gasPriceWei = await provider.eth.getGasPrice(); // Giá gas mặc định từ mạng (Wei)
-
-      const gasPriceGwei = Number(Web3.utils.fromWei(gasPriceWei, 'gwei'));
-
-      return {
-        low: Number((gasPriceGwei * 0.8).toFixed(2)),     // 80% của standard
-        standard: Number(gasPriceGwei.toFixed(2)),        // Standard gas price
-        fast: Number((gasPriceGwei * 1.2).toFixed(2))     // 120% của standard
-      };
-
-    } catch (error) {
-      const gasPriceGwei = Number(Web3.utils.fromWei('21000', 'gwei'))
-
-      return {
-        low: Number((gasPriceGwei * 0.8).toFixed(2)),     // 80% của standard
-        standard: Number(gasPriceGwei.toFixed(2)),        // Standard gas price
-        fast: Number((gasPriceGwei * 1.2).toFixed(2))     // 120% của standard
+      const provider = await this.getProvider(chain);
+  
+      const isEip1559Supported = await provider.eth.getBlock('latest').then((block: any) => {
+        return block.baseFeePerGas !== undefined; // EIP-1559 chains have `baseFeePerGas`
+      });
+  
+      if (isEip1559Supported) {
+        const feeHistory = await provider.eth.getFeeHistory(1, 'latest', [10, 50, 90]);
+        const baseFeePerGas = Number(Web3.utils.fromWei(feeHistory.baseFeePerGas[0], 'gwei'));
+        const maxPriorityFeePerGas = Number(Web3.utils.fromWei(feeHistory.reward[0][1], 'gwei'));
+  
+        return {
+          low: Number((baseFeePerGas + maxPriorityFeePerGas * 0.8).toFixed(2)).toString(),
+          standard: Number((baseFeePerGas + maxPriorityFeePerGas).toFixed(2)).toString(),
+          fast: Number((baseFeePerGas + maxPriorityFeePerGas * 1.2).toFixed(2)).toString(),
+          eip1559: {
+            maxFeePerGas: Number((baseFeePerGas + maxPriorityFeePerGas).toFixed(2)).toString(),
+            maxPriorityFeePerGas: Number(maxPriorityFeePerGas.toFixed(2)).toString(),
+          },
+        };
+      } else {
+        // Fallback to legacy gas price estimation
+        const gasPrice = await provider.eth.getGasPrice();
+        const gasPriceGwei = Number(Web3.utils.fromWei(gasPrice, 'gwei'));
+  
+        return {
+          low: Number((gasPriceGwei * 0.8).toFixed(2)).toString(), 
+          standard: Number(gasPriceGwei.toFixed(2)).toString(), 
+          fast: Number((gasPriceGwei * 1.2).toFixed(2)).toString(),
+        };
       }
+    } catch (error) {
+      const gasPriceGwei = Number(Web3.utils.fromWei('21000', 'gwei'));
+      return {
+        low: Number((gasPriceGwei * 0.8).toFixed(2)).toString(),
+        standard: Number(gasPriceGwei.toFixed(2)).toString(),
+        fast: Number((gasPriceGwei * 1.2).toFixed(2)).toString(),
+      };
     }
   }
 
@@ -230,10 +248,14 @@ export class EvmWallet extends WalletCore<any>{
       tx.gas = await provider.eth.estimateGas(tx);
   
       // Add gas price if provided
-      if (transaction.gasPrice) {
+      if ('maxFeePerGas' in transaction && 'maxPriorityFeePerGas' in transaction) {
+        // EIP-1559 gas pricing
+        tx.maxFeePerGas = Web3.utils.toWei(transaction.maxFeePerGas!.toString(), 'gwei');
+        tx.maxPriorityFeePerGas = Web3.utils.toWei(transaction.maxPriorityFeePerGas!.toString(), 'gwei');
+      } else if (transaction.gasPrice) {
+        // Legacy gas pricing
         tx.gasPrice = Web3.utils.toWei(transaction.gasPrice.toString(), 'gwei');
       }
-  
       const signedTx = await provider.eth.accounts.signTransaction(tx, this.getPrivateKey());
       const receipt = await provider.eth.sendSignedTransaction(signedTx.rawTransaction!);
   

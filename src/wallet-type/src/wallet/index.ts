@@ -24,16 +24,22 @@ export interface GetNftsParams extends BaseParams {}
 export interface EstimateGasParams extends BaseParams {}
 
 export interface EstimateGasResponse {
-  low: number;
-  standard: number;
-  fast: number;
+  low: string;
+  standard: string;
+  fast: string;
+  eip1559?: {
+    maxFeePerGas: string;
+    maxPriorityFeePerGas: string;
+  }
 }
 
 // Base transaction parameters
 interface BaseTransaction {
   chain: chainType; // Chain ID
   to: string; // Recipient address
-  gasPrice?: string; // Gas price in Gwei
+  gasPrice?: string; // Legacy gas price in Gwei
+  maxFeePerGas?: string; // EIP-1559 max fee per gas in Gwei
+  maxPriorityFeePerGas?: string; // EIP-1559 max priority fee per gas in Gwei
 }
 
 // Native token transfer parameters

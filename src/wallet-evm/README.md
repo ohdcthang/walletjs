@@ -31,12 +31,13 @@ const balance = await wallet.getBalance({ chain: 'pol' });
 //Gas
 const gasPriceStep = wallet.estimateGas({ chain: 'pol' });
 
-
 //Transfer
 const nativeTransfer: TransferParams = {
   type: 'native',
   to: '0xRecipientAddress',
   amount: '0.001',
+  maxFeePerGas: gas.eip1559?.maxFeePerGas,
+  maxPriorityFeePerGas: gas.eip1559?.maxPriorityFeePerGas,
   gasPrice: gas.standard,
   chain: 'pol',
 };
@@ -46,6 +47,8 @@ const erc20Transfer: TransferParams = {
   to: '0xRecipientAddress',
   tokenAddress: '0xTokenAddress',
   amount: '0.001',
+  maxFeePerGas: gas.eip1559?.maxFeePerGas,
+  maxPriorityFeePerGas: gas.eip1559?.maxPriorityFeePerGas,
   gasPrice: gas.standard,
   chain: 'pol',
 };
@@ -55,9 +58,13 @@ const nftTransfer: TransferParams = {
   to: '0xRecipientAddress',
   tokenAddress: '0xNftContractAddress',
   tokenId: '1234',
+  maxFeePerGas: gas.eip1559?.maxFeePerGas,
+  maxPriorityFeePerGas: gas.eip1559?.maxPriorityFeePerGas,
   gasPrice: gas.standard,
   chain: 'pol',
 };
 
-const tx = await wallet.transfer(nativeTransfer || erc20Transfer || nftTransfer);
+const tx = await wallet.transfer(
+  nativeTransfer || erc20Transfer || nftTransfer
+);
 ```
