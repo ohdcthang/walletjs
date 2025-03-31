@@ -13,7 +13,8 @@ export class EvmWallet extends WalletCore<any>{
   static instance: EvmWallet
   public networks: NetworkConfig[] = []
   private providerCached: Map<chainType, Web3> = new Map()
-  
+  private initPromise?: Promise<void>;
+
   constructor(wallet: Wallet) {
     super(wallet)
 
@@ -65,9 +66,19 @@ export class EvmWallet extends WalletCore<any>{
   }
 
   async init() {
-    this.config = {
-      networks: await fetchNetworks()
-    }
+    this.initPromise = new Promise(async (resolve, reject) => {
+    try {
+      this.config = {
+        networks: await fetchNetworks(),
+      };
+      resolve();
+      } catch (error) {
+        console.error('Error during initialization:', error);
+        reject(error);
+      }
+    });
+
+    return this.initPromise;
   }
 
   async getBalance<T extends GetBalanceParams>(params: T): Promise<string> {
@@ -101,6 +112,10 @@ export class EvmWallet extends WalletCore<any>{
 
   async getTokens<T extends GetTokensParams>(params: T): Promise<TokenListResponse> {
     const { chain } = params
+
+    if (this.initPromise) {
+      await this.initPromise;
+    }
 
     const address = this.getAddress()
 
@@ -144,6 +159,10 @@ export class EvmWallet extends WalletCore<any>{
 
   async getNfts<T extends GetNftsParams>(params: T): Promise<NftListResponse> {
     const { chain } = params
+
+    if (this.initPromise) {
+      await this.initPromise;
+    }
 
     const address = this.getAddress()
     try {
@@ -288,6 +307,10 @@ export class EvmWallet extends WalletCore<any>{
   async getProvider(network: chainType): Promise<Web3> {
     if (this.providerCached.has(network)) return this.providerCached.get(network) as Web3
 
+    if (this.initPromise) {
+      await this.initPromise;
+    }
+    
     const networkData = this.getNetworkSync(network)
     if (!networkData || !networkData.rpc?.length) throw new Error(`RPC ${network} not supported`)
 
