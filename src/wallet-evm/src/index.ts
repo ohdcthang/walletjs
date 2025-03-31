@@ -17,10 +17,6 @@ export class EvmWallet extends WalletCore<any>{
   constructor(wallet: Wallet) {
     super(wallet)
 
-    if (EvmWallet.instance) return EvmWallet.instance
-    
-    EvmWallet.instance = this
-
     this.init().catch((error) => {
       console.error('Error during initialization:', error);
     });
