@@ -1,4 +1,5 @@
 import { chainType } from '../chains';
+import { NftItem, TokenInfo } from '../tokens';
 
 export interface BaseParams<T = unknown> {
   chain: chainType;
@@ -34,32 +35,35 @@ export interface EstimateGasResponse {
 }
 
 // Base transaction parameters
-interface BaseTransaction {
+export interface BaseTransaction<T = any> {
   chain: chainType; // Chain ID
+  from: string;
   to: string; // Recipient address
   gasPrice?: string; // Legacy gas price in Gwei
-  maxFeePerGas?: string; // EIP-1559 max fee per gas in Gwei
-  maxPriorityFeePerGas?: string; // EIP-1559 max priority fee per gas in Gwei
+  eip1559?: {
+    maxFeePerGas?: string; // EIP-1559 max fee per gas in Gwei
+    maxPriorityFeePerGas?: string; // EIP-1559 max priority fee per gas in Gwei
+  },
+  amount?: string; // Amount in Ether
+  data?: string; // Amount in Ether
+  optional?: T;
 }
 
 // Native token transfer parameters
 export interface NativeTransaction extends BaseTransaction {
   type: 'native';
-  amount: string; // Amount in Ether
 }
 
 // ERC20 token transfer parameters
 export interface Erc20Transaction extends BaseTransaction {
   type: 'erc20';
-  tokenAddress: string; // ERC20 token contract address
-  amount: string; // Amount in token units
+  token: TokenInfo
 }
 
 // NFT transfer parameters
-export interface NftTransaction extends BaseTransaction {
+export interface NftTransaction extends Omit<BaseTransaction, 'amount'> {
   type: 'nft';
-  tokenAddress: string; // NFT contract address
-  tokenId: string; // Token ID of the NFT
+  nft: NftItem
 }
 
 // Union type for TransferParams

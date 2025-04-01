@@ -32,5 +32,6 @@ export interface NativeCurrency {
     networkId: number;
     slip44: number;
     explorers: Explorer[];
+    gasSponsorContract: string;
   }
   

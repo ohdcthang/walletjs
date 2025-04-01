@@ -1,4 +1,4 @@
-import type { BaseConfigurations, EstimateGasParams, EstimateGasResponse, GetBalanceParams, GetNftsParams, GetTokensParams, NftListResponse, TokenListResponse, TransferParams, Wallet } from 'wallet-type'
+import type { BaseConfigurations, Erc20Transaction, EstimateGasParams, EstimateGasResponse, GetBalanceParams, GetNftsParams, GetTokensParams, NftListResponse, TokenListResponse, TransferParams, Wallet } from 'wallet-type'
 
 export abstract class WalletCore<ConfigType extends BaseConfigurations = any> {
     config: ConfigType | undefined;
@@ -23,4 +23,5 @@ export abstract class WalletCore<ConfigType extends BaseConfigurations = any> {
     abstract getNfts<T extends GetNftsParams>(params: T): Promise<NftListResponse> ;
     abstract estimateGas<T extends EstimateGasParams>(params: T): Promise<EstimateGasResponse> ;
     abstract transfer<T extends TransferParams>(params: T): Promise<string> ;
+    abstract transferWithSponsorGas<T extends Omit<Erc20Transaction, 'type'>>(params: T): Promise<string> ;
 }

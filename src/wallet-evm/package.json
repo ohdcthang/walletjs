@@ -53,6 +53,7 @@
     "typescript": "^5.7.3"
   },
   "dependencies": {
+    "ethers": "5.6.0",
     "@ethereumjs/wallet": "^2.0.4",
     "axios": "^1.8.3",
     "bip39": "^3.1.0",
@@ -61,6 +62,7 @@
     "web3": "1.10.0",
     "wallet-core": "workspace:*",
     "wallet-type": "workspace:*",
+    "wallet-utils": "workspace:*",
     "wallet-validator": "workspace:*"
   }
 }

@@ -1,16 +1,17 @@
 import { WalletCore } from 'wallet-core'
-import type { Wallet, NetworkConfig, chainType, GetBalanceParams, GetTokensParams, TokenInfo, TokenListResponse, EstimateGasParams, EstimateGasResponse, TransferParams, NftListResponse, GetNftsParams, NativeTransaction, Erc20Transaction, NftTransaction } from 'wallet-type'
+import type { Wallet, NetworkConfig, chainType, GetBalanceParams, GetTokensParams, TokenInfo, TokenListResponse, EstimateGasParams, EstimateGasResponse, TransferParams, NftListResponse, GetNftsParams, NativeTransaction, Erc20Transaction, NftTransaction, BaseTransaction } from 'wallet-type'
 import { fetchNetworks, fetchNftsList, fetchTokenList } from './api'
 import Web3 from 'web3'
 import { mnemonicToSeedSync, validateMnemonic } from 'bip39'
 import { hdkey, Wallet as hdWallet } from '@ethereumjs/wallet';
 import { ERC20_ABI, ERC721_ABI } from './constants'
 import { get } from 'lodash-es'
-import { InvalidMnemonicError, TransferFailedError, UnsupportedTransactionTypeError } from 'wallet-validator'
-// import { ERC20_ABI } from './constants'
-
+import { InvalidMnemonicError, NetworkFailedError, TransferFailedError, UnsupportedTransactionTypeError } from 'wallet-validator'
+import { SPONSOR_GAS_ABI } from './constants/sposorGas'
+import { signMetaTransaction } from './utils'
+import { toWei } from 'wallet-utils'
+// import { toWei } from 'web3-utils'
 export class EvmWallet extends WalletCore<any>{
-  static instance: EvmWallet
   public networks: NetworkConfig[] = []
   private providerCached: Map<chainType, Web3> = new Map()
   private initPromise?: Promise<void>;
@@ -62,7 +63,7 @@ export class EvmWallet extends WalletCore<any>{
   }
 
   getPrivateKey() {
-      return '0x' + this.wallet.privateKey;
+      return this.wallet.privateKey;
   }
 
   async init() {
@@ -90,7 +91,6 @@ export class EvmWallet extends WalletCore<any>{
     }
 
     try {
-      if(!EvmWallet.instance.config) await this.create()
       const provider = await this.getProvider(chain)
 
       if(!tokenAddress){
@@ -106,6 +106,7 @@ export class EvmWallet extends WalletCore<any>{
         return String(balance); 
       }
     } catch (error) {
+      console.log("🚀 ~ EvmWallet ~ error:", error)
       return '0'
    }
   }
@@ -228,13 +229,13 @@ export class EvmWallet extends WalletCore<any>{
     }
   }
 
-
   async transfer<T extends TransferParams>(params: T): Promise<string> {
     const { chain, type, ...transaction } = params;
   
     try {
       const provider = await this.getProvider(chain);
       const from = this.getAddress();
+      const privateKey = this.getPrivateKey();
   
       let tx: any = { from };
       let data: string | undefined;
@@ -242,68 +243,89 @@ export class EvmWallet extends WalletCore<any>{
         // Use a type guard to narrow the type of `transaction`
       if (type === 'native') {
         const nativeTransaction = transaction as unknown as NativeTransaction;
-        tx = this.buildNativeTx(from, nativeTransaction.to, nativeTransaction.amount);
+        tx = this.buildTransaction({
+          ...nativeTransaction,
+        });
       } else if (type === 'erc20') {
         const erc20Transaction = transaction as unknown as Erc20Transaction;
+        const { token } = erc20Transaction
         data = await this.buildErc20Tx(provider, erc20Transaction);
+        tx = this.buildTransaction({
+          ...erc20Transaction,
+          to: token.tokenAddress,
+          data,
+          amount: '0'
+        });
       } else if (type === 'nft') {
         const nftTransaction = transaction as unknown as NftTransaction;
+        const { nft } = nftTransaction
         data = await this.buildNftTx(provider, from, nftTransaction.to, nftTransaction);
+        tx = this.buildTransaction({
+          ...nftTransaction,
+          to: nft.token_address,
+          data,
+          amount: '0'
+        });
       } else {
         throw new UnsupportedTransactionTypeError({ type });
       }
-      if (data) {
-        tx = {
-          ...tx,
-          //@ts-expect-error
-          to: 'tokenAddress' in transaction ? transaction.tokenAddress : tx.to,
-          data,
-        };
+
+      tx = {
+        ...tx,
+        from
       }
-  
+
       tx.gas = await provider.eth.estimateGas(tx);
-  
-      // Add gas price if provided
-      if ('maxFeePerGas' in transaction && 'maxPriorityFeePerGas' in transaction) {
-        // EIP-1559 gas pricing
-        tx.maxFeePerGas = Web3.utils.toWei(transaction.maxFeePerGas!.toString(), 'gwei');
-        tx.maxPriorityFeePerGas = Web3.utils.toWei(transaction.maxPriorityFeePerGas!.toString(), 'gwei');
-      } else if (transaction.gasPrice) {
-        // Legacy gas pricing
-        tx.gasPrice = Web3.utils.toWei(transaction.gasPrice.toString(), 'gwei');
-      }
-      const signedTx = await provider.eth.accounts.signTransaction(tx, this.getPrivateKey());
+
+      const signedTx = await provider.eth.accounts.signTransaction(tx, privateKey);
       const receipt = await provider.eth.sendSignedTransaction(signedTx.rawTransaction!);
   
       return receipt.transactionHash;
     } catch (error) {
+      console.log("🚀 ~ EvmWallet ~ error:", error)
       throw new TransferFailedError({ params, error });
     }
   }
   
-  private buildNativeTx(from: string, to: string, amount: string) {
-    return {
-      from,
-      to,
-      value: Web3.utils.toWei(amount, 'ether'),
-    };
-  }
-  
   private async buildErc20Tx(provider: Web3, transaction: Erc20Transaction): Promise<string> {
-    const { to, amount, tokenAddress } = transaction;
-    const contract = new provider.eth.Contract(ERC20_ABI as any, tokenAddress);
-    const decimals = await contract.methods.decimals().call();
-    const amountInWei = (Number(amount) * Number(10 ** decimals)).toString();
+    const { to, amount, token } = transaction;
+    const contract = new provider.eth.Contract(ERC20_ABI as any, token.tokenAddress);
+    const amountInWei = toWei(amount as string, token.decimals)
+    console.log("🚀 ~ EvmWallet ~ buildErc20Tx ~ amountInWei:", amountInWei)
     return contract.methods.transfer(to, amountInWei).encodeABI();
   }
   
   private async buildNftTx(provider: Web3, from: string, to: string, transaction: NftTransaction): Promise<string> {
-    const { tokenAddress, tokenId } = transaction;
-    const contract = new provider.eth.Contract(ERC721_ABI as any, tokenAddress);
-    return contract.methods.safeTransferFrom(from, to, tokenId).encodeABI();
+    const { nft } = transaction;
+    const contract = new provider.eth.Contract(ERC721_ABI as any, nft.token_address);
+    return contract.methods.safeTransferFrom(from, to, nft.token_id).encodeABI();
+  }
+
+  private  buildTransaction(params: BaseTransaction): Promise<any> {
+    const { to, amount, data, gasPrice  } = params
+
+    const tx: any = { to };
+  
+    if (amount) {
+      tx.value = toWei(amount, 18); // Convert value to Wei
+    }
+  
+    if (data) {
+      tx.data = data; // Add data for ERC20 or NFT transactions
+    }
+  
+    if (params?.eip1559) {
+      const { maxFeePerGas, maxPriorityFeePerGas } = params.eip1559;
+
+      tx.maxFeePerGas = toWei(maxFeePerGas as string, 9); // EIP-1559 max fee
+      tx.maxPriorityFeePerGas = toWei(maxPriorityFeePerGas as string, 9); // EIP-1559 priority fee
+    } else if(gasPrice) {
+      tx.gasPrice = toWei(gasPrice, 9); // Legacy gas price
+    }
+  
+    return tx;
   }
   
-
   async getProvider(network: chainType): Promise<Web3> {
     if (this.providerCached.has(network)) return this.providerCached.get(network) as Web3
 
@@ -319,11 +341,43 @@ export class EvmWallet extends WalletCore<any>{
     return provider
   }
 
+  async transferWithSponsorGas<T extends Omit<Erc20Transaction, 'type'>>(params: T): Promise<string> {
+    const { chain, token, amount, to, gasPrice, from } = params
+
+    try {
+      const privateKey = this.getPrivateKey();
+
+      const provider = await this.getProvider(chain);
+      const networkData = this.getNetworkSync(params.chain)
+
+      if(!networkData) throw new NetworkFailedError('Network not supported')
+
+      if(!networkData.gasSponsorContract){
+        throw new TransferFailedError('Chain not supported sponsor gas')
+      }
+
+      const sponsorGasAdress = networkData.gasSponsorContract;
+      
+      const amountRaw = toWei(amount as string, token.decimals)
+      const gasLessContract = new provider.eth.Contract(SPONSOR_GAS_ABI as any, sponsorGasAdress);
+      const nonce = await gasLessContract.methods.nonces(from).call();
+      const signature = await signMetaTransaction({gasSponsorContract: sponsorGasAdress, privateKey, from: from as string, to, amount: amountRaw, nonce, rpcUrl: provider.currentProvider?.host as string});
+      const data =  await gasLessContract.methods.executeMetaTransaction(from, to, amountRaw, token.tokenAddress, signature.v, signature.r, signature.s).encodeABI();
+
+      const transaction = await this.buildTransaction({ from, to: sponsorGasAdress, amount: '0', data, gasPrice , eip1559: params?.eip1559, chain });
+
+      transaction.gas = await provider.eth.estimateGas(transaction);
+
+      const signedTx = await provider.eth.accounts.signTransaction( transaction, privateKey);
+      const { transactionHash } =  await provider.eth.sendSignedTransaction(signedTx.rawTransaction!);
+
+      return transactionHash
+    } catch (error) {
+      throw new TransferFailedError({ params, error });
+    }
+  }
+  
   private getNetworkSync(network: chainType): NetworkConfig | undefined {
     return this.config?.networks.find((net: NetworkConfig) => net.shortName === network)
-  }
-
-  async create() {
-    await this.init();
   }
 }
