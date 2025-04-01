@@ -36,8 +36,10 @@ const nativeTransfer: TransferParams = {
   type: 'native',
   to: '0xRecipientAddress',
   amount: '0.001',
-  maxFeePerGas: gas.eip1559?.maxFeePerGas,
-  maxPriorityFeePerGas: gas.eip1559?.maxPriorityFeePerGas,
+    eip1559: {
+    maxFeePerGas: gas.eip1559?.maxFeePerGas,
+    maxPriorityFeePerGas: gas.eip1559?.maxPriorityFeePerGas,
+  }
   gasPrice: gas.standard,
   chain: 'pol',
 };
@@ -45,10 +47,12 @@ const nativeTransfer: TransferParams = {
 const erc20Transfer: TransferParams = {
   type: 'erc20',
   to: '0xRecipientAddress',
-  tokenAddress: '0xTokenAddress',
+  token: {}
   amount: '0.001',
-  maxFeePerGas: gas.eip1559?.maxFeePerGas,
-  maxPriorityFeePerGas: gas.eip1559?.maxPriorityFeePerGas,
+  eip1559: {
+    maxFeePerGas: gas.eip1559?.maxFeePerGas,
+    maxPriorityFeePerGas: gas.eip1559?.maxPriorityFeePerGas,
+  }
   gasPrice: gas.standard,
   chain: 'pol',
 };
@@ -56,10 +60,11 @@ const erc20Transfer: TransferParams = {
 const nftTransfer: TransferParams = {
   type: 'nft',
   to: '0xRecipientAddress',
-  tokenAddress: '0xNftContractAddress',
-  tokenId: '1234',
-  maxFeePerGas: gas.eip1559?.maxFeePerGas,
-  maxPriorityFeePerGas: gas.eip1559?.maxPriorityFeePerGas,
+  nft: {},
+  eip1559: {
+    maxFeePerGas: gas.eip1559?.maxFeePerGas,
+    maxPriorityFeePerGas: gas.eip1559?.maxPriorityFeePerGas,
+  }
   gasPrice: gas.standard,
   chain: 'pol',
 };
