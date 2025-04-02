@@ -9,8 +9,8 @@ import { get } from 'lodash-es'
 import { InvalidMnemonicError, NetworkFailedError, TransferFailedError, UnsupportedTransactionTypeError } from 'wallet-validator'
 import { SPONSOR_GAS_ABI } from './constants/sposorGas'
 import { signMetaTransaction } from './utils'
-import { toWei } from 'wallet-utils'
-// import { toWei } from 'web3-utils'
+import { fromWei, toWei } from 'wallet-utils'
+
 export class EvmWallet extends WalletCore<any>{
   public networks: NetworkConfig[] = []
   private providerCached: Map<chainType, Web3> = new Map()
@@ -106,7 +106,6 @@ export class EvmWallet extends WalletCore<any>{
         return String(balance); 
       }
     } catch (error) {
-      console.log("🚀 ~ EvmWallet ~ error:", error)
       return '0'
    }
   }
@@ -196,8 +195,8 @@ export class EvmWallet extends WalletCore<any>{
   
       if (isEip1559Supported) {
         const feeHistory = await provider.eth.getFeeHistory(1, 'latest', [10, 50, 90]);
-        const baseFeePerGas = Number(Web3.utils.fromWei(feeHistory.baseFeePerGas[0], 'gwei'));
-        const maxPriorityFeePerGas = Number(Web3.utils.fromWei(feeHistory.reward[0][1], 'gwei'));
+        const baseFeePerGas = Number(fromWei(feeHistory.baseFeePerGas[0], 9));
+        const maxPriorityFeePerGas = Number(fromWei(Number(feeHistory.reward[0][1]), 9));
   
         return {
           low: Number((baseFeePerGas + maxPriorityFeePerGas * 0.8).toFixed(2)).toString(),
@@ -211,7 +210,7 @@ export class EvmWallet extends WalletCore<any>{
       } else {
         // Fallback to legacy gas price estimation
         const gasPrice = await provider.eth.getGasPrice();
-        const gasPriceGwei = Number(Web3.utils.fromWei(gasPrice, 'gwei'));
+        const gasPriceGwei = Number(fromWei(gasPrice, 9));
   
         return {
           low: Number((gasPriceGwei * 0.8).toFixed(2)).toString(), 
@@ -220,7 +219,7 @@ export class EvmWallet extends WalletCore<any>{
         };
       }
     } catch (error) {
-      const gasPriceGwei = Number(Web3.utils.fromWei('21000', 'gwei'));
+      const gasPriceGwei = Number(fromWei('21000', 9));
       return {
         low: Number((gasPriceGwei * 0.8).toFixed(2)).toString(),
         standard: Number(gasPriceGwei.toFixed(2)).toString(),
@@ -237,7 +236,7 @@ export class EvmWallet extends WalletCore<any>{
       const from = this.getAddress();
       const privateKey = this.getPrivateKey();
   
-      let tx: any = { from };
+      let tx: any 
       let data: string | undefined;
   
         // Use a type guard to narrow the type of `transaction`
@@ -270,19 +269,14 @@ export class EvmWallet extends WalletCore<any>{
         throw new UnsupportedTransactionTypeError({ type });
       }
 
-      tx = {
-        ...tx,
-        from
-      }
-
       tx.gas = await provider.eth.estimateGas(tx);
+      tx.nonce = await provider.eth.getTransactionCount(from, 'pending');
 
       const signedTx = await provider.eth.accounts.signTransaction(tx, privateKey);
       const receipt = await provider.eth.sendSignedTransaction(signedTx.rawTransaction!);
   
       return receipt.transactionHash;
     } catch (error) {
-      console.log("🚀 ~ EvmWallet ~ error:", error)
       throw new TransferFailedError({ params, error });
     }
   }
@@ -291,7 +285,6 @@ export class EvmWallet extends WalletCore<any>{
     const { to, amount, token } = transaction;
     const contract = new provider.eth.Contract(ERC20_ABI as any, token.tokenAddress);
     const amountInWei = toWei(amount as string, token.decimals)
-    console.log("🚀 ~ EvmWallet ~ buildErc20Tx ~ amountInWei:", amountInWei)
     return contract.methods.transfer(to, amountInWei).encodeABI();
   }
   
@@ -302,9 +295,9 @@ export class EvmWallet extends WalletCore<any>{
   }
 
   private  buildTransaction(params: BaseTransaction): Promise<any> {
-    const { to, amount, data, gasPrice  } = params
+    const { to, amount, data, gasPrice, from  } = params
 
-    const tx: any = { to };
+    const tx: any = { to, from };
   
     if (amount) {
       tx.value = toWei(amount, 18); // Convert value to Wei

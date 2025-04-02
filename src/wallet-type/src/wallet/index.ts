@@ -44,7 +44,7 @@ export interface BaseTransaction<T = any> {
     maxFeePerGas?: string; // EIP-1559 max fee per gas in Gwei
     maxPriorityFeePerGas?: string; // EIP-1559 max priority fee per gas in Gwei
   },
-  amount?: string; // Amount in Ether
+  amount: string; // Amount in Ether
   data?: string; // Amount in Ether
   optional?: T;
 }
